@@ -19,6 +19,9 @@ from platform import system
 from time import time
 from threading import Thread, Event
 
+from pythonosc.dispatcher import Dispatcher #edited
+from pythonosc.osc_server import BlockingOSCUDPServer #edited
+
 # local
 from sevensegment import SevenSegmentDisp
 import beatfinder
@@ -63,6 +66,10 @@ class Main_Frame(wx.Frame):
         # OSC Setup
         self.osc_client = None
 
+         # OSC Receiver Setup
+        self.osc_receiver_thread = Thread(target=self.start_osc_receiver, daemon=True)
+        self.osc_receiver_thread.start()
+
         # BPM Setup
         self.beatfinder = None  # audio analysis instance
         self.send_bpm = 128  # sent bpm when sync is diasabled (used to hold last live or tap value)
@@ -88,13 +95,40 @@ class Main_Frame(wx.Frame):
 
         self.Centre()  # centre window on screen
 
-# PEAK METER
+        # PEAK METER
         self.uv_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.OnUVTimer)
 
         self.uv_timer.Start(20)
         # self.peak_meter.Start(50)
         #self.peak_meter.SetData(0, 0, 1)
+
+    # Start edits
+    def start_osc_receiver(self):
+        """Starts the OSC receiver server."""
+        dispatcher = Dispatcher()
+        dispatcher.map("/bpmtoosc/startstop", self.osc_startstop_handler)
+        dispatcher.map("/bpmtoosc/tap", self.osc_tap_handler)
+        dispatcher.map("/bpmtoosc/sync", self.osc_sync_handler)
+
+        ip = "127.0.0.1"  # Change to your desired IP
+        port = 7001       # Change to your desired port
+        server = BlockingOSCUDPServer((ip, port), dispatcher)
+        print(f"OSC Receiver started on {ip}:{port}")
+        server.serve_forever()
+
+    def osc_startstop_handler(self, address, *args):
+        """Handles OSC messages for Start/Stop."""
+        wx.CallAfter(self.on_button_startstop, None)
+
+    def osc_tap_handler(self, address, *args):
+        """Handles OSC messages for TAP."""
+        wx.CallAfter(self.on_button_tap, None)
+
+    def osc_sync_handler(self, address, *args):
+        """Handles OSC messages for Sync."""
+        wx.CallAfter(self.on_button_sync, None)
+    # End edits
 
     def OnUVTimer(self, event):
         if self.running:
@@ -755,6 +789,7 @@ class Main_Frame(wx.Frame):
         self.sync = False
         self.uv_timer.stop()
         self.peak_meter.Stop()
+        self.osc_receiver_thread.stop() #edited
 
         self.no_sync_send_thread.join()
 

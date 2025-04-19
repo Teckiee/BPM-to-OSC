@@ -4,3 +4,6 @@ pytoexe config.json
 installation tips.txt
 lastsession.ini
 output/BPMtoOSC.exe
+/build
+/dist
+main_gui.spec
